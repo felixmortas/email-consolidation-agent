@@ -1,0 +1,14 @@
+name: email-agent
+channels:
+  - microsoft
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13.11
+  - langgraph=1.0.7
+  - langchain-mistralai=1.1.1
+  - langchain=1.2.8
+  - python-dotenv=1.2.1
+  - pip
+  - pip:
+    - playwright==1.58.0
