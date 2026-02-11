@@ -32,7 +32,7 @@ class BraveProvider:
             "X-Subscription-Token": api_key
         }
 
-    def search(self, query, num_results=5):
+    def search(self, query, num_results=5, debug_mode=False):
         params = {"q": query}
         response = requests.get(self.url, headers=self.headers, params=params)
         
@@ -43,12 +43,9 @@ class BraveProvider:
         results = response.json()
         web_results = results.get("web", {}).get("results", [])
         
-        return [item['url'] for item in web_results[:num_results]]
+        if debug_mode:
+            return ['https://www.agrosemens.com/', 'https://graines-biologiques.com/', 'https://www.facebook.com/agrosemens.semencesbio/?locale=fr_FR', 'https://www.instagram.com/agrosemens_bio/', 'https://fr.linkedin.com/company/agrosemens']
         
-class MockProvider:
-    """A test provider to avoid unnecessary API consumption"""
-    def search(self, query, num_results=5):
-        return ['https://www.agrosemens.com/', 'https://graines-biologiques.com/', 'https://www.facebook.com/agrosemens.semencesbio/?locale=fr_FR', 'https://www.instagram.com/agrosemens_bio/', 'https://fr.linkedin.com/company/agrosemens']
+        return [item['url'] for item in web_results[:num_results]]        
     
-# search_engine = BraveProvider(BRAVE_API_KEY)
-search_engine = MockProvider()
+search_engine = BraveProvider(BRAVE_API_KEY)

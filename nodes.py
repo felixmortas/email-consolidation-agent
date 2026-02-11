@@ -2,7 +2,7 @@ from context import ContextSchema
 from state import InputState, OverallState, OutputState
 from search_engine import search_engine
 from models.llm import URLSelection, CSSSelector, PageAnalysis
-from utils import determine_navigation_method
+from utils import determine_navigation_method, verify_login_success
 
 from langgraph.runtime import Runtime
 from langchain_core.messages import HumanMessage
@@ -34,7 +34,7 @@ def find_url(state: InputState, runtime: Runtime[ContextSchema]) -> OverallState
 
     # Create search query using the website name and perform search using search engine
     query = state["website_name"]
-    search_results = search_engine.search(query, num_results=5)
+    search_results = search_engine.search(query, num_results=5, debug_mode=runtime.context.debug_mode)
     print("Search Results:", search_results)
     
     # Prepare LLM prompt for URL selection
@@ -43,8 +43,11 @@ def find_url(state: InputState, runtime: Runtime[ContextSchema]) -> OverallState
         .with_structured_output(URLSelection) # The URLSelection class is expected to define the output schema
     prompt = f"Given the website name '{query}', pick the most likely official homepage URL from this list: {search_results}. Return the URL in a JSON format without any other text or explanation.\n\nExample output:\n{{\"url\": \"https://www.example.com/\"}}"   
     
-    # response = llm.invoke([HumanMessage(content=prompt)])
-    response = type('obj', (object,), {"url": "https://www.agrosemens.com/"}) # TEMPORARY: Hardcoded response for testing/debugging purposes
+    if runtime.context.debug_mode:
+        print("[DEBUG] Debug mode enabled - using hardcoded URL response for testing")
+        response = type('obj', (object,), {"url": "https://www.agrosemens.com/"}) # TEMPORARY: Hardcoded response for testing/debugging purposes
+    else:
+        response = llm.invoke([HumanMessage(content=prompt)])
     print(f"Found URL: {response.url}")
 
     # Return updated state with the found URL
@@ -112,7 +115,11 @@ def find_login_button(state: OverallState, runtime: Runtime[ContextSchema]) -> O
         DOM elements:
         {dom_summary}"""
     
-    response = llm.invoke([HumanMessage(content=prompt)])
+    if runtime.context.debug_mode:
+        print("[DEBUG] Debug mode enabled - using hardcoded selector response for testing")
+        response = type('obj', (object,), {"selector": ".login", "href": "https://www.agrosemens.com/mon-compte"}) # TEMPORARY: Hardcoded response for testing/debugging purposes
+    else:
+        response = llm.invoke([HumanMessage(content=prompt)])
     print(f"[DEBUG] Found selector: {response.selector}, href: {response.href}")
 
     # Determine navigation method based on href value
@@ -231,14 +238,120 @@ def analyze_page(state: OverallState, runtime: Runtime[ContextSchema]) -> Overal
     model = f"{runtime.context.llm_provider}:{runtime.context.llm_model}"
     llm = init_chat_model(model) \
         .with_structured_output(PageAnalysis)
-    prompt = f"Does this page content look like a Login Page (form, username, password)? Return the answer in a JSON format without any other text or explanation.\n\nExample output:\n{{\"is_login_page\": true}}\n\nContent: {page_structure}"
+    prompt = f"""
+        Does this page content look like a Login Page (form, username, password)? Return the answer in a JSON format without any other text or explanation.\n
+        If yes, also return the selectors for username, password and submit button\n
+        \n
+        Example output:\n
+        {{"is_login_page": true, "username_selector": "input[id='email']", "password_selector": "#password", "submit_selector": "button[type='submit']"}}\n
+        \n
+        Content: {page_structure}
+    """
 
-    response = llm.invoke([HumanMessage(content=prompt)])
+    if runtime.context.debug_mode:
+        print("[DEBUG] Debug mode enabled - using hardcoded selector response for testing")
+        response = type('obj', (object,), {"is_login_page": True, "username_selector": "input[id='email']", "password_selector": "input[id='passwd']", "submit_selector": "input[id='SubmitLogin'][value='Identifiez-vous']"}) # TEMPORARY: Hardcoded response for testing/debugging purposes
+    else:
+        response = llm.invoke([HumanMessage(content=prompt)])
+
     print(f"[DEBUG] Is login page: {response.is_login_page}")
+    print(f"[DEBUG] Username selector: {response.username_selector}")
+    print(f"[DEBUG] Password selector: {response.password_selector}")
+    print(f"[DEBUG] Submit selector: {response.submit_selector}")
 
     # Return state with verification results and update retry counter
     return {
         "is_login_page_reached": response.is_login_page,
-        "output_status": "success" if response.is_login_page else "searching",
+        "username_selector": response.username_selector,
+        "password_selector": response.password_selector,
+        "submit_selector": response.submit_selector,
         "retry_count": state.get("retry_count", 0) + 1
     }
+
+def login(state: OverallState, runtime: Runtime[ContextSchema]) -> OverallState:
+    """
+    Node to login into the website.
+    
+    This function logs in the website and updates the OverallState state accordingly. 
+    If the connection is not established, it marks the process as failed.
+    
+    Args:
+        state: Current state containing login page url
+        runtime: Runtime context, the page instance is used to perform the login action
+
+    Returns:
+        Updated state with login success status and current URL
+    """
+    # Debugging: Print login information
+    print("[DEBUG] Entering login node")
+    print("Current URL for login:", state.get("current_url"))
+
+    # Get browser page instance
+    page = runtime.context.page
+
+    # Get credentials from state or runtime context
+    username = runtime.context.username
+    password = runtime.context.password
+
+    if not username or not password:
+        print("[ERROR] Missing credentials")
+        return {"login_success": False, "error": "Missing username or password"}
+    
+    initial_url = page.url
+
+    try:                
+        # Wait for form to be ready
+        # print("[DEBUG] Waiting for login form to be ready...")
+        # page.wait_for_selector(state["username_selector"], state="visible", timeout=5000)
+        
+        # Fill in the login form
+        print(f"[DEBUG] Filling username field: {state['username_selector']}")
+        page.fill(state["username_selector"], username, timeout=5000)
+        
+        print(f"[DEBUG] Filling password field: {state['password_selector']}")
+        page.fill(state["password_selector"], password, timeout=5000)
+        
+        # Optional: Add small delay to mimic human behavior
+        # page.wait_for_timeout(500)
+        
+        # Connect: Click the submit button and wait for navigation or response
+        print(f"[DEBUG] Clicking submit button: {state['submit_selector']}")
+        page.click(state["submit_selector"], timeout=5000)
+        
+        # Wait for navigation or response
+        try:
+            page.wait_for_load_state("networkidle", timeout=10000)
+        except:
+            page.wait_for_timeout(3000)
+
+        # Connect: OR Use Promise.all to handle navigation properly
+        # with page.expect_navigation(timeout=15000, wait_until="domcontentloaded"):
+        #     page.click(state["submit_selector"])
+        
+        new_url = page.url
+        print(f"[DEBUG] URL after login attempt: {new_url}")
+        
+        # Verify if login was successful
+        login_success = verify_login_success(page, state, initial_url, new_url)
+        print(f"[DEBUG] Login success detected: {login_success}")
+        
+        return {
+            "login_success": login_success,
+            "current_url": new_url,
+            "url_history": [new_url]
+        }
+        
+    except TimeoutError as e:
+        print(f"[ERROR] Timeout during login: {e}")
+        return {
+            "login_success": False,
+            "error": f"Timeout during login process: {str(e)}",
+        }
+
+    except Exception as e:
+        print(f"[ERROR] Login failed with exception: {e}")
+        return {
+            "login_success": False,
+            "error": str(e),
+        }
+

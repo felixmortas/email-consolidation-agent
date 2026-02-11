@@ -27,3 +27,12 @@ class PageAnalysis(BaseModel):
     is_login_page: bool = Field(
         description="Whether the page appears to be a login page"
     )
+    username_selector: str = Field(
+        description="CSS selector for the username field, if identified"
+    )
+    password_selector: str = Field(
+        description="CSS selector for the password field, if identified"
+    )
+    submit_selector: str = Field(
+        description="CSS selector for the submit button, if identified"
+    )

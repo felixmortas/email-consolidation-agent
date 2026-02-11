@@ -3,7 +3,7 @@ from playwright.sync_api import sync_playwright
 from contextlib import contextmanager
 
 from state import OverallState, InputState, OutputState
-from nodes import find_url, find_login_button, navigate_to_login, analyze_page
+from nodes import find_url, find_login_button, navigate_to_login, analyze_page, login
 from context import ContextSchema
 
 # ===================== BUILDING THE GRAPH =====================
@@ -13,20 +13,22 @@ builder.add_node("find_url", find_url)
 builder.add_node("find_login_button", find_login_button)
 builder.add_node("analyze_page", analyze_page)
 builder.add_node("navigate_to_login", navigate_to_login)
+builder.add_node("login", login)
 
 # ===================== CONDITIONAL EDGES =====================
 def is_url_missing(state: OverallState) -> bool:
     return state.get("initial_url") is None
 
 def should_retry_look_for_login(state: OverallState) -> bool:
-    return not state["is_login_page_reached"] or not state["retry_count"] >= 3
+    return not state["is_login_page_reached"] and not state["retry_count"] >= 3
 
 # ===================== EDGES =====================
 builder.add_conditional_edges(START, is_url_missing, {True: "find_url", False: "find_login_button"})
 builder.add_edge("find_url", "find_login_button")
 builder.add_edge("find_login_button", "navigate_to_login")
 builder.add_edge("navigate_to_login", "analyze_page")
-builder.add_conditional_edges("analyze_page", should_retry_look_for_login, {True: "find_login_button", False: END})
+builder.add_conditional_edges("analyze_page", should_retry_look_for_login, {True: "find_login_button", False: "login"})
+builder.add_edge("login", END)
 
 
 # ===================== PLAYWRIGHT CONTEXT MANAGER =====================
@@ -49,9 +51,15 @@ def playwright_session(context: ContextSchema):
 # ===================== INVOKING THE GRAPH =====================
 graph = builder.compile()
 
+from dotenv import load_dotenv
+import os
+
 context = ContextSchema(
+            debug_mode=True,  # Enable debug mode for detailed logging
             llm_provider="mistralai",
-            llm_model="mistral-small-latest"
+            llm_model="mistral-small-latest",
+            username=os.getenv("EMAIL_USERNAME"),  
+            password=os.getenv("EMAIL_PASSWORD")
         )
 
 with playwright_session(context):

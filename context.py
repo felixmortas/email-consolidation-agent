@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 """
 Data class for managing context and configuration of the email consolidation agent.
 
@@ -16,14 +15,21 @@ Attributes:
     page (Optional[Page]): Active Playwright page/tab instance for interactions.
         Initialized at runtime, not through constructor.
 """
+from dataclasses import dataclass, field
 from typing import Optional
 from playwright.sync_api import Browser, Page, Playwright
 
 
 @dataclass
 class ContextSchema:
+    debug_mode: bool = False  # Added debug mode flag for testing purposes
+
     llm_provider: str = "mistralai"
     llm_model: str = "mistral-small-latest"
+
     playwright: Optional[Playwright] = field(default=None, init=False)
     browser: Optional[Browser] = field(default=None, init=False)
     page: Optional[Page] = field(default=None, init=False)
+
+    username: str = "your_username"  # Placeholder, should be set from environment variable or secure vault
+    password: str = "your_password"  # Placeholder, should be set from environment variable or secure vault

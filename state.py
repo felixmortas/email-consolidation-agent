@@ -19,11 +19,14 @@ class OverallState(TypedDict):
 
     # Page Content tracking
     current_url: str
+    navigation_method: Optional[Literal["url", "click"]]
     # current_dom: Optional[str]        # Cleaned Markdown/DOM
     # screenshot: Optional[str]          # Base64 or path for vlm_fallback
     # are_cookies_accepted: bool
     is_login_page_reached: bool
-    navigation_method: Optional[Literal["url", "click"]]
+    username_selector: Optional[str]
+    password_selector: Optional[str]
+    submit_selector: Optional[str]
     # has_captcha: bool
     # is_logged_in: bool
     # is_change_password_page_reached: bool   
@@ -36,6 +39,8 @@ class OverallState(TypedDict):
     # The identified "Click Target" (ID, CSS selector, or description)
     next_action_location: Optional[str]
     login_href: Optional[str]          # The href associated with the login button, if any
+
+    login_success: Optional[bool]           # Tracks if login was successful, for retry logic
     
     # Status tracking
     error: Optional[str]
