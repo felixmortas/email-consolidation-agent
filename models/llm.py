@@ -19,12 +19,15 @@ class CSSSelector(BaseModel):
     href: str = Field(
         description="The href attribute if available",
     )
+    text: str = Field(
+        description="The innerText of the selected element"
+    )
 
 
 class PageAnalysis(BaseModel):
     """Analysis of whether a page is a login page."""
     
-    is_login_page: bool = Field(
+    is_page_reached: bool = Field(
         description="Whether the page appears to be a login page"
     )
     username_selector: str = Field(
@@ -35,4 +38,14 @@ class PageAnalysis(BaseModel):
     )
     submit_selector: str = Field(
         description="CSS selector for the submit button, if identified"
+    )
+
+class ChangeEmailSectionAnalysis(BaseModel):
+    """Analysis of whether the change email section is reached."""
+    
+    is_page_reached: bool = Field(
+        description="Whether the change email section appears to be reached"
+    )
+    next_action_location: str = Field(
+        description="Description of where to click or navigate next (e.g., 'Click the change email link with selector .change-email')"
     )

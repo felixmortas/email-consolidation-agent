@@ -29,7 +29,8 @@ class OverallState(TypedDict):
     submit_selector: Optional[str]
     # has_captcha: bool
     # is_logged_in: bool
-    # is_change_password_page_reached: bool   
+    change_email_url: Optional[str]  # URL for change email section, if identified
+    # is_change_email_page_reached: bool   
 
     # Navigation Logic
     # We use a list to track steps taken, or a simple count for fallbacks
@@ -41,6 +42,8 @@ class OverallState(TypedDict):
     login_href: Optional[str]          # The href associated with the login button, if any
 
     login_success: Optional[bool]           # Tracks if login was successful, for retry logic
+
+    is_change_email_section_reached: Optional[bool]  # Tracks if change email section was reached
     
     # Status tracking
     error: Optional[str]
